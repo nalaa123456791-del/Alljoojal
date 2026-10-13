@@ -144,6 +144,10 @@ dialog textarea#edt{width:100%;height:50vh;font:13px monospace;background:var(--
 #edd{width:min(720px,94vw)}
 @media (max-width:520px){.top{padding-left:68px}.sbtn span{display:none}.main{padding-top:36px}}
 </style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="gitbae.js"></script>
 </head>
 <body>
 <div class="top">
@@ -287,13 +291,13 @@ function showAuth(){sview("intro");authErr("");$("authd").showModal();$("ae").fo
 function openUrl(u){if(!S.user){need();return}var a=document.createElement("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove()}
 function isUrl(s){return /^(https?:\/\/)?(localhost|([\w-]+\.)+[a-z]{2,})(:\d+)?(\/\S*)?$/i.test(s.trim())}
 function norm(u){u=u.trim();return /^https?:\/\//i.test(u)?u:"https://"+u}
-function key(v){return v.toLowerCase().replace(/[^a-z0-9]+/g," ").trim()}
+function key(v){return v.toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim()}
 var HUBK=["aj hub","hub aj","ajhub","hubaj","all joojal","alljoojal","joojal"];
 var VS=["home","hub","mine","aps","res","gb"];
 function view(n){VS.forEach(function(x){$(x).hidden=x!==n});$("sug").style.display="none";if(n==="hub")hubUI();if(n==="mine")files();if(n==="gb")gbLand();window.scrollTo(0,0)}
 function showHub(on){if(on){q.value="";$("url").value=""}view(on?"hub":"home")}
 function run(v){v=v.trim();if(!v)return;
-  if(/^aj:\/\//i.test(v)){var am=appBySlug(v);if(am)openApp(am.id);else toast("No published app at this link");return}
+  if(/^aj:\/\//i.test(v)){var am=appBySlug(v);if(am)openApp(am.id);else if(typeof openCloudApp==="function")openCloudApp(v.replace(/^aj:\/\//i,"").replace(/\/+$/,"").toLowerCase());else toast("No published app at this link");return}
   if(HUBK.indexOf(key(v))>-1){showHub(true);return}
   if(["gitbae","gitbaes","git bae","gitbase","gitbae console","gitbaes console"].indexOf(key(v))>-1){view("gb");return}
   var bg=v.match(/^!(\w)\s+(.+)$/);if(bg&&BANG[bg[1].toLowerCase()]){openUrl(BANG[bg[1].toLowerCase()]+encodeURIComponent(bg[2]));return}
@@ -362,6 +366,7 @@ function render(){chips();var h='<h2>'+T[cur]+'<button data-a="close" aria-label
     S.tasks.forEach(function(t,i){h+='<div class="row"><input type="checkbox" data-a="tt" data-i="'+i+'"'+(t.d?" checked":"")+' aria-label="Done"><span class="'+(t.d?"d":"")+'">'+esc(t.t)+'</span><button data-a="dt" data-i="'+i+'" aria-label="Delete">&times;</button></div>'});
     if(S.tasks.some(function(t){return t.d}))h+='<div class="f" style="margin-top:12px"><button data-a="ct">Clear completed</button></div>'}
   else if(p==="settings"){
+    h+='<span class="lbl">My projects</span><div id="sprj"><p class="empty">Loading...</p></div>';
     h+='<span class="lbl">Search engine</span><select id="se">';
     for(var k in ENG)h+='<option value="'+k+'"'+(S.engine===k?" selected":"")+'>'+ENG[k][0]+'</option>';
     h+='</select><span class="lbl">Theme</span><select id="st"><option value="auto"'+(S.theme==="auto"?" selected":"")+'>Match device</option><option value="light"'+(S.theme==="light"?" selected":"")+'>Light</option><option value="dark"'+(S.theme==="dark"?" selected":"")+'>Dark</option></select>';
@@ -386,7 +391,7 @@ function render(){chips();var h='<h2>'+T[cur]+'<button data-a="close" aria-label
     h+='<div class="f"><input class="t" id="bt" placeholder="Title (optional)"><input class="t" id="bu" placeholder="Address"><button class="pb" data-a="ab">Add bookmark</button></div>';
     if(!S.bms.length)h+='<p class="empty">No bookmarks yet.</p>';
     S.bms.forEach(function(b,i){h+='<div class="row"><a href="'+esc(b[1])+'" target="_blank" rel="noopener">'+esc(b[0])+'</a><button data-a="db" data-i="'+i+'" aria-label="Delete">&times;</button></div>'})}
-  dr.innerHTML=h}
+  dr.innerHTML=h;if(p==="settings")sprj()}
 dr.addEventListener("change",function(e){var t=e.target;
   if(t.id==="se"){S.engine=t.value;save();toast("Search engine: "+ENG[S.engine][0])}
   else if(t.id==="st"){S.theme=t.value;save();theme()}
@@ -435,8 +440,9 @@ function files(){dbAll().then(function(a){cache=mine(a);var fq=$("ff").value.toL
     h+='<div class="fi"><span class="th">'+th+'</span><span class="fm"><b>'+esc(f.name)+'</b><small>'+sz(f.size)+' &middot; '+new Date(f.date).toLocaleDateString()+' &middot; '+(S.am[String(f.id)]&&S.am[String(f.id)].done?"Published":"Draft")+'</small></span><button data-v="'+f.id+'" aria-label="Pin project">'+((S.fav||{})[String(f.id)]?"\u2605":"\u2606")+'</button><button data-s="'+f.id+'">App</button><button data-o="'+f.id+'">Open</button><button data-d="'+f.id+'">Save</button><button data-n="'+f.id+'">Rename</button><button data-x="'+f.id+'" aria-label="Delete '+esc(f.name)+'">Delete</button></div>'});
   $("fl").innerHTML=h||'<p class="empty" style="text-align:center">No projects yet. Go back to Aj Hub and upload a file.</p>';
   $("cnt").textContent=cache.length?cache.length+" file"+(cache.length>1?"s":"")+" \u00b7 "+sz(tot):"";if(navigator.storage&&navigator.storage.estimate)navigator.storage.estimate().then(function(e){if(e&&e.quota)$("cnt").textContent+=" \u00b7 browser storage "+sz(e.usage)+" of "+sz(e.quota)})})}
+function autoPub(a,ids){a.forEach(function(f,i){if(!/\.html?$/i.test(f.name)&&!/html/.test(f.type||""))return;var m=meta(ids[i]);m.owner=S.user.uid;if(!m.name)m.name=f.name.replace(/\.[^.]+$/,"");m.pub="public";m.done=true;m.at=Date.now();m.slug=uniqSlug(m)});save()}
 function upload(list){var a=Array.prototype.slice.call(list);if(!a.length)return;if(!S.user){need();return}
-  Promise.all(a.map(function(f){return dbAdd({name:f.name,size:f.size,type:f.type,date:Date.now(),blob:f,owner:S.user.uid})})).then(function(ids){toast(a.length+" file"+(a.length>1?"s":"")+" uploaded"+(idb?"":" (not saved after closing)"));files();openAps(ids[0])}).catch(function(){toast("Upload failed. Storage may be full.")})}
+  Promise.all(a.map(function(f){return dbAdd({name:f.name,size:f.size,type:f.type,date:Date.now(),blob:f,owner:S.user.uid})})).then(function(ids){toast(a.length+" file"+(a.length>1?"s":"")+" uploaded"+(a.some(function(f){return/\.html?$/i.test(f.name)})?" - HTML apps are public until you set them to Private":"")+(idb?"":" (not saved after closing)"));autoPub(a,ids);files();openAps(ids[0])}).catch(function(){toast("Upload failed. Storage may be full.")})}
 $("clk").onclick=function(e){e.stopPropagation();$("fin").click()};
 $("fu").onclick=function(){$("fin").click()};
 $("fin").onchange=function(){upload(this.files);this.value=""};
@@ -446,15 +452,15 @@ $("fu").addEventListener("drop",function(e){upload(e.dataTransfer.files)});
 $("hback").onclick=function(){showHub(false)};
 document.querySelector(".urlbar b").onclick=function(){showHub(false)};
 var pu=null;
-function pfile(id){return cache.filter(function(f){return f.id===id})[0]}
+function pfile(id){return cache.filter(function(f){return String(f.id)===String(id)})[0]}
 $("pvx").onclick=function(){$("pvd").close()};
 $("pvd").addEventListener("close",function(){if(pu)URL.revokeObjectURL(pu);pu=null;$("pvb").innerHTML=""});
 $("fl").addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;
   if(b.dataset.v){var fk=String(b.dataset.v);S.fav=S.fav||{};if(S.fav[fk])delete S.fav[fk];else S.fav[fk]=1;save();files();return}
   if(b.dataset.s){openAps(b.dataset.s);return}
-  if(b.dataset.x){var f0=pfile(+b.dataset.x)||pfile(parseFloat(b.dataset.x));if(f0)ask("Delete "+f0.name+"?").then(function(ok){if(ok)dbDel(f0.id).then(files)});return}
-  if(b.dataset.n){var fr=pfile(+b.dataset.n)||pfile(parseFloat(b.dataset.n));if(fr)ask("Rename file","text",fr.name).then(function(nv){if(nv&&nv.trim()){fr.name=nv.trim();dbPut(fr).then(files)}});return}
-  var id=b.dataset.o||b.dataset.d,f=pfile(+id)||pfile(parseFloat(id));if(!f)return;
+  if(b.dataset.x){var f0=pfile(b.dataset.x);if(f0)ask("Delete "+f0.name+"?").then(function(ok){if(ok)dbDel(f0.id).then(files)});return}
+  if(b.dataset.n){var fr=pfile(b.dataset.n);if(fr)ask("Rename file","text",fr.name).then(function(nv){if(nv&&nv.trim()){fr.name=nv.trim();dbPut(fr).then(files)}});return}
+  var id=b.dataset.o||b.dataset.d,f=pfile(id);if(!f)return;
   if(b.dataset.d){if(typeof claude==="undefined"){toast("Saving is not available here");return}claude.use("downloads").then(function(d){if(!d){toast("Saving is not available here");return}
     f.blob.arrayBuffer().then(function(buf){return d.save({filename:f.name,data:buf})}).catch(function(er){toast(er&&er.code==="declined"?"Save cancelled":er&&er.code==="rejected_extension"?"This file type cannot be saved from here":"Could not save file")})}).catch(function(){toast("Saving is not available here")});return}
   pu=URL.createObjectURL(f.blob);var t=f.type,h;
@@ -494,12 +500,12 @@ function renderAps(){
   var h='<div><button class="apb" data-t="name">Aj Name</button><div class="pn on" id="pn-name"><input class="t" id="a-name" style="width:100%" value="'+esc(A.name)+'" aria-label="App name"></div>'
   +'<button class="apb" data-t="disc">App Discussion</button><div class="pn" id="pn-disc"><div id="dl"></div><div class="f"><input class="t" id="a-dc" placeholder="Write a comment"><button class="pb" data-b="dc">Post</button></div></div>'
   +'<button class="apb" data-t="logo">App Logo</button><div class="pn" id="pn-logo"><div class="th" id="lg" style="width:72px;height:72px;margin-bottom:10px">'+(A.logo?'<img alt="" src="'+A.logo+'">':'Logo')+'</div><input type="file" id="a-lf" accept="image/*"></div>'
-  +'<button class="apb" data-t="tags">App searching Tags</button><div class="pn" id="pn-tags"><input class="t" id="a-tg" style="width:100%" placeholder="game, notes, tool" value="'+esc(A.tags)+'"></div>'
+  +'<button class="apb" data-t="tags">App searching Tags</button><div class="pn" id="pn-tags"><input class="t" id="a-tg" style="width:100%" placeholder="game, notes, tool" value="'+esc(A.tags)+'"><p class="rs" id="tgc" style="margin:6px 0 0">'+tagParse(A.tags).list.length+'/30 tags, separated by commas</p></div>'
   +'<button class="apb" data-t="pw">App open password</button><div class="pn" id="pn-pw"><input class="t" id="a-pw" type="password" style="width:100%" placeholder="'+(A.pw?"Password is set. Type to change":"Leave empty for no password")+'"></div></div>'
   +'<div><h3 class="apt">App Settings</h3><div class="setbox"><h4>App publish</h4>'+rad("pub","private",A.pub==="private")+rad("pub","public",A.pub==="public")
   +(A.done?'<div class="f"><button data-b="unpub">Unpublish app</button></div>':'')+'<h4>Block user</h4><div class="f"><input class="t" id="a-bu" placeholder="User name"><button class="pb" data-b="bu">Block</button></div><div id="bl"></div>'
   +'<h4>File edit</h4><button class="pb" data-b="fe">Edit file</button>'
-  +'<h4>Firebase / Gitbae</h4><p class="rs" style="margin:0 0 4px">Yes adds the Gitbae SDK (window.gitbae) to this app.</p>'+rad("fb","yes",A.fb)+rad("fb","no",!A.fb)+'<textarea id="a-fc" placeholder="Paste your firebaseConfig object here" '+(A.fb?"":"hidden")+'>'+esc(A.fbc)+'</textarea>'
+  +'<h4>Firebase / Gitbae</h4><p class="rs" style="margin:0 0 4px">Yes adds the real Gitbae (window.gitbae): Real Time, Git Store and sign-in, shared with everyone who opens this app.</p>'+rad("fb","yes",A.fb)+rad("fb","no",!A.fb)+'<textarea id="a-fc" placeholder="Paste your firebaseConfig object here" '+(A.fb?"":"hidden")+'>'+esc(A.fbc)+'</textarea>'
   +'<h4>Ads</h4>'+rad("ads","yes",A.ads)+rad("ads","no",!A.ads)+'</div></div>'
   +'<div><h3 class="apt">App preview</h3><div class="prev" id="pvw"></div></div>'
   +'<div class="apfoot"><button class="hlogo" data-b="hub" style="font-size:40px;margin:0" aria-label="Aj Hub"><b>A</b><i>j</i><span>Hub</span></button><button class="apaj" data-b="pub">A.P.Aj</button></div>';
@@ -524,7 +530,7 @@ $("aps").addEventListener("click",function(e){var t=e.target.closest("[data-t]")
   else if(a==="pub"){if(!A.name.trim()){toast("Give your app a name first");return}
     A.done=true;A.at=Date.now();A.slug=uniqSlug(A);save();openApp(A.id,true);toast("Published. Link: "+linkOf(A))}});
 $("aps").addEventListener("input",function(e){var t=e.target,id=t.id;
-  if(id==="a-name")A.name=t.value;else if(id==="a-tg")A.tags=t.value;
+  if(id==="a-name")A.name=t.value;else if(id==="a-tg"){var tl=tagParse(t.value);if(tl.over){toast("Maximum 30 tags");t.value=tl.list.join(", ")}A.tags=tl.list.join(", ");var tc=$("tgc");if(tc)tc.textContent=tl.list.length+"/30 tags, separated by commas"}
   else if(id==="a-pw"){pwh(t.value).then(function(h){A.pw=h;save()});return}
   else if(id==="a-fc"){A.fbc=t.value;clearTimeout(ft2);ft2=setTimeout(preview,500)}else return;
   save()});
@@ -538,6 +544,33 @@ $("aps").addEventListener("change",function(e){var t=e.target;
 $("edc").onclick=function(){$("edd").close()};
 $("eds").onclick=function(){cf.blob=new Blob([$("edt").value],{type:cf.type});cf.size=cf.blob.size;dbPut(cf).then(function(){$("edd").close();preview();toast("File saved")}).catch(function(){toast("Could not save file")})};
 /* results */
+/* ajsearch */
+function key2(v){return String(v||"").toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim()}
+function osa(a,b){var m=a.length,n=b.length,d=[],i,j;for(i=0;i<=m;i++)d[i]=[i];for(j=1;j<=n;j++)d[0][j]=j;
+  for(i=1;i<=m;i++)for(j=1;j<=n;j++){var c=a[i-1]===b[j-1]?0:1;d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+c);
+    if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1])d[i][j]=Math.min(d[i][j],d[i-2][j-2]+1)}return d[m][n]}
+function tol(n){return n<=2?0:n<=4?1:n<=6?2:3}
+function wsc(w,t){if(t===w)return 10;var tl=tol(w.length);
+  if(w.length>=3){if(t.indexOf(w)===0)return 8;if(t.indexOf(w)>-1)return 6}
+  if(tl>0){var d=osa(w,t);if(d<=tl)return 7-d;if(t.length>w.length){var d2=osa(w,t.slice(0,w.length));if(d2<=tl-1)return 5-d2}}return 0}
+function appScore(ws,it){var nt=key2(it.name).split(" ").filter(Boolean),tg=[];
+  String(it.tags||"").split(",").forEach(function(t){var k=key2(t);if(k){tg.push(k);k.split(" ").forEach(function(x){if(x&&x!==k)tg.push(x)})}});
+  var joined=nt.join(""),tot=0;
+  ws.forEach(function(w){var best=0;nt.forEach(function(t){best=Math.max(best,wsc(w,t))});tg.forEach(function(t){best=Math.max(best,wsc(w,t)*.8)});
+    if(joined&&w.length>=4)best=Math.max(best,wsc(w,joined)*.9);tot+=best});return tot}
+function tagParse(s){var seen={},list=[],over=false;String(s||"").split(/[,\n]+/).forEach(function(x){x=x.trim().slice(0,30);if(!x)return;var k=x.toLowerCase();if(seen[k])return;seen[k]=1;if(list.length>=30){over=true;return}list.push(x)});return{list:list,over:over}}
+function localItems(){return Object.keys(S.am).map(function(k){return S.am[k]}).filter(function(m){return m.done&&(m.pub==="public"||(S.user&&m.owner===S.user.uid))}).map(function(m){if(!m.slug)m.slug=uniqSlug(m);return{key:m.id,cloud:false,slug:m.slug,name:m.name,tags:m.tags,logo:m.logo,link:linkOf(m),pub:m.pub,pw:!!m.pw,views:m.views||0,updated:m.at||0}})}
+function appRow(it){return'<div class="rr" '+(it.cloud?'data-cloud="':'data-app="')+esc(it.key)+'" tabindex="0" role="link"><span class="th">'+(it.logo?'<img alt="" src="'+esc(it.logo)+'">':esc((it.name||"A").charAt(0).toUpperCase()))+'</span><span class="fm"><span class="rt">'+esc(it.name)+'</span><br><span class="rs">'+esc(it.link)+' &middot; '+(it.pub==="public"?"Public":"Private")+(it.pw?" &middot; Password":"")+(it.views?" &middot; "+it.views+" open"+(it.views>1?"s":""):"")+(it.tags?" &middot; "+esc(String(it.tags).slice(0,80)):"")+'</span></span></div>'}
+function appsSection(items,v){var ws=key2(v).split(" ").filter(Boolean);
+  var sc=items.map(function(it){return{it:it,s:ws.length?appScore(ws,it):0}});
+  var hit=sc.filter(function(x){return x.s>0}).sort(function(a,b){return b.s-a.s||(b.it.views||0)-(a.it.views||0)}).slice(0,10),hk={};
+  hit.forEach(function(x){hk[x.it.key]=1});
+  var T={};if(hit[0])String(hit[0].it.tags||"").split(",").forEach(function(t){var k=key2(t);if(k)T[k]=1});
+  var rel=function(it){var n=0;String(it.tags||"").split(",").forEach(function(t){if(T[key2(t)])n++});return n};
+  var more=sc.filter(function(x){return!hk[x.it.key]}).sort(function(a,b){return rel(b.it)-rel(a.it)||(b.it.views||0)-(a.it.views||0)||(b.it.updated||0)-(a.it.updated||0)}).slice(0,10);
+  return'<p class="rs">'+hit.length+' Aj site'+(hit.length===1?"":"s")+' found</p>'+hit.map(function(x){return appRow(x.it)}).join("")+(hit.length||!more.length?"":'<p class="empty">No site matches this search.</p>')+(more.length?'<p class="rs" style="margin-top:14px">More sites on Aj</p>'+more.map(function(x){return appRow(x.it)}).join(""):"")}
+/* end ajsearch */
+
 var UN={length:{m:1,km:1e3,cm:.01,mm:.001,mi:1609.344,mile:1609.344,miles:1609.344,ft:.3048,feet:.3048,"in":.0254,inch:.0254,inches:.0254,yd:.9144},mass:{kg:1,g:.001,mg:1e-6,lb:.45359237,lbs:.45359237,oz:.0283495},vol:{l:1,ml:.001,gal:3.78541,gallon:3.78541}};
 function conv(n,a,b){if({c:1,f:1,k:1}[a]&&{c:1,f:1,k:1}[b]){var c=a==="c"?n:a==="f"?(n-32)*5/9:n-273.15;var o=b==="c"?c:b==="f"?c*9/5+32:c+273.15;return Math.round(o*100)/100}
   for(var k in UN){var u=UN[k];if(u[a]!==undefined&&u[b]!==undefined)return Math.round(n*u[a]/u[b]*1e6)/1e6}return null}
@@ -550,10 +583,7 @@ function inst(v){var k=key(v),t=v.trim();
   if(cm){var r2=conv(+cm[1],cm[2],cm[3]);if(r2!==null)return esc(cm[1])+" "+esc(cm[2])+" = <b>"+r2+" "+esc(cm[3])+"</b>"}
   return""}
 function results(v){rtab="all";view("res");var ws=key(v).split(" "),h="",ia=inst(v);if(ia)h+='<div class="ia">'+ia+'</div>';
-  var ms=Object.keys(S.am).map(function(k){return S.am[k]}).filter(function(m){var tx=(m.name+" "+m.tags).toLowerCase();return m.done&&(m.pub==="public"||(S.user&&m.owner===S.user.uid))&&(m.slug=m.slug||uniqSlug(m))&&ws.some(function(w){return w&&tx.indexOf(w)>-1})});
-  h+='<div data-sec="apps"><p class="rs">'+ms.length+' Aj Hub app'+(ms.length===1?"":"s")+' found</p>';
-  ms.forEach(function(m){h+='<div class="rr" data-app="'+m.id+'" tabindex="0" role="link"><span class="th">'+(m.logo?'<img alt="" src="'+m.logo+'">':esc((m.name||"A").charAt(0).toUpperCase()))+'</span><span class="fm"><span class="rt">'+esc(m.name)+'</span><br><span class="rs">'+linkOf(m)+' &middot; '+(m.pub==="public"?"Public":"Private")+(m.pw?" &middot; Password":"")+(m.views?" &middot; "+m.views+" open"+(m.views>1?"s":""):"")+(m.tags?" &middot; "+esc(m.tags):"")+'</span></span></div>'});
-  h+='</div>';
+  h+='<div data-sec="apps">'+appsSection(localItems(),v)+'</div>';
   var bm=S.bms.filter(function(b){var t=(b[0]+" "+b[1]).toLowerCase();return ws.some(function(w){return w&&t.indexOf(w)>-1})});
   if(bm.length)h+='<div data-sec="marks"><hr style="border:0;border-top:1px solid var(--card);margin:18px 0"><p>Bookmarks</p>'+bm.map(function(b){return'<div class="rr"><span class="fm"><a class="rt" style="text-decoration:none" href="'+esc(b[1])+'" target="_blank" rel="noopener">'+esc(b[0])+'</a><br><span class="rs">'+esc(b[1])+'</span></span></div>'}).join("")+'</div>';
   h+='<div data-sec="web"><hr style="border:0;border-top:1px solid var(--card);margin:18px 0"><p>Search the web for <b>'+esc(v)+'</b></p><div class="f">';
@@ -565,8 +595,8 @@ function results(v){rtab="all";view("res");var ws=key(v).split(" "),h="",ia=inst
     $("rl").insertAdjacentHTML("beforeend",x+"</div>");tabApply()})}
 $("rl").addEventListener("click",function(e){var w=e.target.closest("[data-w]");
   if(w){openUrl(ENG[w.dataset.w][1]+encodeURIComponent($("rl").dataset.q));return}
-  var r=e.target.closest("[data-app]");if(r){openApp(r.dataset.app);return}var fr=e.target.closest("[data-f]");if(fr)openAps(fr.dataset.f)});
-$("rl").addEventListener("keydown",function(e){if(e.key==="Enter"){var r=e.target.closest("[data-app]");if(r)openApp(r.dataset.app)}});
+  var r=e.target.closest("[data-app]");if(r){openApp(r.dataset.app);return}var cl=e.target.closest("[data-cloud]");if(cl){if(typeof openCloudApp==="function")openCloudApp(cl.dataset.cloud);return}var fr=e.target.closest("[data-f]");if(fr)openAps(fr.dataset.f)});
+$("rl").addEventListener("keydown",function(e){if(e.key==="Enter"){var r=e.target.closest("[data-app]");if(r)openApp(r.dataset.app);var cl=e.target.closest("[data-cloud]");if(cl&&typeof openCloudApp==="function")openCloudApp(cl.dataset.cloud)}});
 $("rq").addEventListener("keydown",function(e){if(e.key==="Enter")run(this.value)});
 $("rgo").onclick=function(){run($("rq").value)};
 $("rlogo").onclick=function(){view("home")};
@@ -601,7 +631,7 @@ function authErr(m){$("aerr").textContent=m||""}
 function hubUI(){var u=S.user;$("signp").hidden=!!u;$("fu").hidden=!u;$("ubar").hidden=!u;
   if(u){$("uemail").textContent=u.name||u.email;dbAll().then(function(l){$("myp").textContent="My projects ("+mine(l).length+")"})}}
 function claimLegacy(){dbAll().then(function(l){l.filter(function(x){return!x.owner}).forEach(function(x){x.owner=S.user.uid;dbPut(x);var m=S.am[String(x.id)];if(m&&!m.owner)m.owner=S.user.uid});save()})}
-function setUser(u){S.user=u;S.joined[u.uid]=S.joined[u.uid]||Date.now();save();var d=$("authd");if(d.open)d.close();toast("Signed in as "+u.email);greet();hubUI();claimLegacy();gbRefresh();if(typeof gbListen==="function")gbListen()}
+function setUser(u){S.user=u;S.joined[u.uid]=S.joined[u.uid]||Date.now();save();var d=$("authd");if(d.open)d.close();toast("Signed in as "+u.email);greet();hubUI();claimLegacy();gbRefresh();if(typeof gbListen==="function")gbListen();if(typeof cloudStart==="function")cloudStart()}
 function signOut(){S.user=null;save();try{window.firebase&&firebase.auth&&firebase.auth().signOut()}catch(e){}hubUI();greet();gbRefresh();toast("Signed out")}
 function creds(ei,pi){var e=$(ei||"ae").value.trim().toLowerCase(),p=$(pi||"ap").value;
   if(!/^\S+@\S+\.\S+$/.test(e)){authErr("Enter a valid email");return null}
@@ -646,6 +676,10 @@ $("fpb").onclick=function(){var e=$("fe").value.trim().toLowerCase(),a=S.accts[e
   if(p.length<6){authErr("Password must be at least 6 characters");return}
   var salt=Math.random().toString(36).slice(2);
   pwh(salt+p).then(function(h){a.salt=salt;a.hash=h;$("fn").value="";authErr("");setUser({email:e,name:a.name||"",uid:a.uid})})};
+function sprj(){var el=$("sprj");if(!el)return;if(!S.user){el.innerHTML='<p class="empty">Sign in to see your projects.</p>';return}
+  dbAll().then(function(l){var L=mine(l).sort(function(a,b){return b.date-a.date});if(!$("sprj"))return;
+    $("sprj").innerHTML=L.length?L.map(function(f){var m=S.am[String(f.id)]||{};return'<div class="row"><span>'+esc(m.name||f.name)+'<br><small class="rs">'+esc(f.name)+' &middot; '+sz(f.size)+' &middot; '+(m.done?(m.pub==="public"?"Public":"Private"):"Draft")+'</small></span><button class="pb" data-sp="'+esc(f.id)+'">Edit</button></div>'}).join(""):'<p class="empty">No projects yet. Upload a file in Aj Hub.</p>'})}
+dr.addEventListener("click",function(e){var b=e.target.closest("[data-sp]");if(b){var id=b.dataset.sp;close();openAps(id)}});
 function acctName(){ask("Your name","text",S.user.name||"").then(function(n){if(!n||!n.trim())return;n=n.trim();S.user.name=n;var a=S.accts[S.user.email];if(a)a.name=n;save();greet();hubUI();if(cur)render()})}
 function acctPw(){var a=S.accts[S.user.email];if(!a){toast("Password change is not available for this account");return}
   ask("Current password","password").then(function(cp){if(cp===null)return;pwh(a.salt+cp).then(function(h){if(h!==a.hash){toast("Wrong password");return}
@@ -707,7 +741,7 @@ function authCode(){var d=S.user&&gdb(S.user.uid),id=gbAppId();
   if(d&&d.aj&&d.ep)return"<!-- ===== Aj ===== -->\n"+ajPage(id)+"\n\n<!-- ===== E.P create page ===== -->\n"+ep();
   if(d&&d.ep)return ep();if(d&&d.aj)return ajPage(id);return authGeneric()}
 function authBlocks(d){var h="",L={aj:"Aj code",ep:"E.P code - create account",eplogin:"E.P code - log in"};["aj","ep","eplogin"].forEach(function(k){if(!d[k==="eplogin"?"ep":k])return;h+='<div style="margin:16px 0"><span class="ybtn">'+L[k]+'</span> <button class="pb" data-gb="cpcode" data-k="'+k+'">Copy code</button><pre style="margin-top:8px;border:3px solid var(--line);border-radius:12px;padding:10px;max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-word;font:12px monospace">'+esc(authBlock(k))+'</pre></div>'});return h||'<p class="rs">Press INTEGRAT to get the sign-in code here.</p>'}
-var RULES_TXT="\"gitbae\": {\n  \"$app\": {\n    \"config\": {\n      \".read\": true,\n      \".write\": \"auth != null && auth.uid === $app\"\n    },\n    \"public\": {\n      \".read\": true,\n      \".write\": \"auth != null\"\n    },\n    \"store\": {\n      \".read\": true,\n      \"$col\": {\n        \"$id\": {\n          \".write\": \"auth != null\"\n        }\n      }\n    },\n    \"users\": {\n      \"$uid\": {\n        \".read\": \"auth != null && (auth.uid === $uid || auth.uid === $app)\",\n        \".write\": \"auth != null && auth.uid === $uid\"\n      }\n    },\n    \"profiles\": {\n      \"$uid\": {\n        \".read\": \"auth != null && (auth.uid === $uid || auth.uid === $app)\",\n        \".write\": \"auth != null && auth.uid === $uid\"\n      }\n    }\n  }\n}";
+var RULES_TXT="\"aj\": {\n  \"$uid\": {\n    \".read\": \"auth != null && auth.uid === $uid\",\n    \".write\": \"auth != null && auth.uid === $uid\"\n  }\n},\n\"ajpub\": {\n  \"index\": {\n    \".read\": true,\n    \".indexOn\": [\n      \"updated\"\n    ],\n    \"$key\": {\n      \".write\": \"auth != null && (!data.exists() || data.child('owner').val() === auth.uid) && (!newData.exists() || newData.child('owner').val() === auth.uid)\",\n      \".validate\": \"newData.hasChildren(['name','owner'])\"\n    }\n  },\n  \"files\": {\n    \"$key\": {\n      \".read\": true,\n      \".write\": \"auth != null && root.child('ajpub').child('index').child($key).child('owner').val() === auth.uid\"\n    }\n  }\n},\n\"gitbae\": {\n  \"$app\": {\n    \"config\": {\n      \".read\": true,\n      \".write\": \"auth != null && auth.uid === $app\"\n    },\n    \"public\": {\n      \".read\": true,\n      \".write\": \"auth != null\"\n    },\n    \"store\": {\n      \".read\": true,\n      \"$col\": {\n        \"$id\": {\n          \".write\": \"auth != null\"\n        }\n      }\n    },\n    \"users\": {\n      \"$uid\": {\n        \".read\": \"auth != null && (auth.uid === $uid || auth.uid === $app)\",\n        \".write\": \"auth != null && auth.uid === $uid\"\n      }\n    },\n    \"profiles\": {\n      \"$uid\": {\n        \".read\": \"auth != null && (auth.uid === $uid || auth.uid === $app)\",\n        \".write\": \"auth != null && auth.uid === $uid\"\n      }\n    }\n  }\n}";
 function gbRulesHtml(){return'<h2>Rules</h2><div class="gbbox" style="min-height:300px"><button class="ybtn" data-gb="cprules" style="position:absolute;top:12px;right:12px">copy code</button><p class="rs" style="margin:0 0 8px;padding-right:110px">Add this block inside "rules" in Firebase console > Realtime Database > Rules, then press Publish. Do not replace your existing rules.</p><pre>'+esc(RULES_TXT)+'</pre></div>'}
 function gbCount(o){var n=0;(function w(x){if(x&&typeof x==="object")Object.keys(x).forEach(function(k){n++;w(x[k])})})(o);return n}
 function gbUsageHtml(d){var cols=Object.keys(d.gs),docs=0;cols.forEach(function(c){docs+=Object.keys(d.gs[c]||{}).length});
@@ -765,6 +799,165 @@ $("gbp").addEventListener("click",function(e){var d=S.user&&gdb(S.user.uid);if(!
 $("gf").addEventListener("change",function(){var f=this.files[0];this.value="";if(!f||!S.user)return;var d=gdb(S.user.uid),isRt=gbT==="rt";
   f.text().then(function(t){var o=JSON.parse(t);if(!o||typeof o!=="object")throw 0;
     ask("Replace all "+(isRt?"Real Time":"Git Store")+" data with "+f.name+"?").then(function(ok){if(!ok)return;if(isRt)d.rt=o;else d.gs=gnorm(o);gsave();gbRender();if(isRt)gbNotify();toast("Imported "+f.name)})}).catch(function(){toast("That is not a valid JSON file")})});
+/* Aj cloud sync (hosted version): your data in Realtime Database, your files as base64 */
+var cloudU=null,cloudReady=false,cloudT=null,CK=["am","bms","hist","tasks","apps","fav","bio","opt","engine","theme","acc","name","photos","joined"],CMAX=4*1024*1024;
+function cloudErr(er){toast(er&&/permission/i.test((er.code||"")+(er.message||""))?"Cloud: permission denied. Add the Aj rules (database.rules.json) in Firebase.":"Cloud sync failed")}
+function cdb(){return firebase.database()}
+function cpick(){var o={};CK.forEach(function(k){if(S[k]!==undefined)o[k]=S[k]});return o}
+function cloudPush(){if(!cloudU||!cloudReady)return;cdb().ref("aj/"+cloudU+"/state").set(JSON.stringify(cpick())).catch(cloudErr)}
+var _save=save;save=function(){_save();clearTimeout(cloudT);if(cloudReady)cloudT=setTimeout(function(){cloudPush();pubRun()},1500)};
+function cloudApply(v){CK.forEach(function(k){if(v[k]!==undefined)S[k]=v[k]});
+  ["bms","hist","tasks","apps"].forEach(function(k){if(!Array.isArray(S[k]))S[k]=[]});
+  ["am","fav","bio","photos","joined"].forEach(function(k){if(!S[k]||typeof S[k]!=="object")S[k]={}});
+  fixOpt();_save();theme();apps();greet();chips();hubUI()}
+function b64(blob){return blob.arrayBuffer().then(function(buf){var b=new Uint8Array(buf),s="",i;for(i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));return btoa(s)})}
+function unb64(s,type){var bin=atob(s),b=new Uint8Array(bin.length),i;for(i=0;i<bin.length;i++)b[i]=bin.charCodeAt(i);return new Blob([b],{type:type||"application/octet-stream"})}
+function cloudPutFile(rec){if(!cloudU||!cloudReady)return Promise.resolve();
+  if(rec.size>CMAX){toast(rec.name+" is bigger than 4 MB, so it stays on this device only");return Promise.resolve()}
+  var id=String(rec.id),r=cdb().ref("aj/"+cloudU);
+  return b64(rec.blob).then(function(d){return Promise.all([r.child("fdata/"+id).set(d),r.child("fmeta/"+id).set({name:rec.name,size:rec.size,type:rec.type||"",date:rec.date})])}).catch(cloudErr)}
+function cloudDelFile(id){if(!cloudU)return;var r=cdb().ref("aj/"+cloudU);r.child("fdata/"+id).remove().catch(cloudErr);r.child("fmeta/"+id).remove().catch(cloudErr)}
+var _dbAdd=dbAdd,_dbPut=dbPut,_dbDel=dbDel;
+dbAdd=function(rec){if(rec.id===undefined)rec.id="c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);return _dbAdd(rec).then(function(k){pubDirty[String(rec.id)]=true;cloudPutFile(rec);return k})};
+dbPut=function(rec){return _dbPut(rec).then(function(x){pubDirty[String(rec.id)]=true;cloudPutFile(rec);setTimeout(pubRun,1500);return x})};
+dbDel=function(id){cloudDelFile(id);var m=S.am[String(id)];if(m&&m.gslug)pubRemove(m);delete S.am[String(id)];save();return _dbDel(id)};
+function cloudFiles(){var r=cdb().ref("aj/"+cloudU);
+  return Promise.all([r.child("fmeta").once("value"),dbAll()]).then(function(x){var meta=x[0].val()||{},local=mine(x[1]),have={},jobs=[];
+    local.forEach(function(f){have[String(f.id)]=1});
+    Object.keys(meta).forEach(function(id){if(have[id])return;jobs.push(r.child("fdata/"+id).once("value").then(function(s){var d=s.val();if(!d)return;var m=meta[id];return _dbAdd({id:id,name:m.name,size:m.size,type:m.type,date:m.date,blob:unb64(d,m.type),owner:S.user.uid})}))});
+    local.forEach(function(f){if(!meta[String(f.id)])jobs.push(cloudPutFile(f))});
+    return Promise.all(jobs)}).then(function(){if(!$("mine").hidden)files();hubUI();pubRun()}).catch(cloudErr)}
+function cloudStart(){var u=gbUid();if(!u||cloudU===u||!window.firebase||!firebase.database)return;cloudU=u;cloudReady=false;
+  cdb().ref("aj/"+u+"/state").once("value").then(function(s){var v=s.val();if(v){try{cloudApply(JSON.parse(v))}catch(e){}}cloudReady=true;if(!v)cloudPush();return cloudFiles()}).catch(cloudErr)}
+
+/* Aj public apps (hosted): shared index + files so every account can find them */
+var PUBC=null,PUBT=0,pubBusy=false,pubDirty={};
+function isHtmlRec(f){return /html/.test(f.type||"")||/\.html?$/i.test(f.name||"")}
+function ensureLogo(m){if(!m.logo||m.logoFor===m.logo.length)return Promise.resolve();
+  return new Promise(function(res){var im=new Image();im.onload=function(){var c=document.createElement("canvas");c.width=c.height=64;var x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,64,64);x.drawImage(im,0,0,64,64);m.logoS=c.toDataURL("image/jpeg",.6);m.logoFor=m.logo.length;res()};im.onerror=function(){res()};im.src=m.logo})}
+function pubObj(m,f){return{name:m.name||f.name,tags:tagParse(m.tags).list,owner:cloudU,ownerName:(S.user&&S.user.name)||"",file:String(f.id),fname:f.name,type:f.type||"text/html",size:f.size,pw:m.pw||"",blocked:(m.blocked||[]).slice(0,100),fb:!!m.fb,ads:!!m.ads,logo:m.logoS||""}}
+function pubClaim(m,f,i){i=i||0;var base=slug(m.name||f.name),k=i?base+"-"+(i+1):base;
+  return cdb().ref("ajpub/index/"+k).transaction(function(cur){if(cur===null||(cur&&cur.owner===cloudU&&cur.file===String(f.id)))return{name:m.name||f.name,owner:cloudU,file:String(f.id),updated:Date.now()};return}).then(function(r){
+    if(r.committed){m.gslug=k;m.slug=k;return k}if(i<30)return pubClaim(m,f,i+1);throw new Error("no free link")})}
+function pubPush(m,f){return ensureLogo(m).then(function(){
+  var o=pubObj(m,f),sig=JSON.stringify(o),claim=m.gslug?Promise.resolve(m.gslug):pubClaim(m,f);
+  return claim.then(function(k){var dirty=!m.fup||pubDirty[String(f.id)];
+    if(m.isig===sig&&!dirty)return;
+    o.updated=Date.now();
+    var up=dirty?b64(f.blob).then(function(d){return cdb().ref("ajpub/files/"+k).set(d)}):Promise.resolve();
+    return up.then(function(){return cdb().ref("ajpub/index/"+k).set(o)}).then(function(){m.isig=sig;m.fup=true;delete pubDirty[String(f.id)];PUBT=0;save()})})})}
+function pubRemove(m){var k=m.gslug;if(!k)return Promise.resolve();
+  return cdb().ref("ajpub/files/"+k).remove().then(function(){return cdb().ref("ajpub/index/"+k).remove()}).then(function(){delete m.gslug;m.fup=false;delete m.isig;PUBT=0;save()}).catch(cloudErr)}
+function pubRun(){if(!cloudU||!cloudReady||pubBusy)return;pubBusy=true;
+  dbAll().then(function(l){var jobs=[];mine(l).forEach(function(f){var m=S.am[String(f.id)];if(!m)return;
+    var want=m.done&&m.pub==="public"&&isHtmlRec(f)&&f.size<=CMAX;
+    if(want)jobs.push(pubPush(m,f));else if(m.gslug)jobs.push(pubRemove(m))});
+    return Promise.all(jobs)}).catch(cloudErr).then(function(){pubBusy=false})}
+function pubLoad(force){if(PUBC&&!force&&Date.now()-PUBT<60000)return Promise.resolve(PUBC);
+  return cdb().ref("ajpub/index").orderByChild("updated").limitToLast(300).once("value").then(function(s){var a=[];s.forEach(function(c){var v=c.val();if(v&&v.name)a.push(Object.assign({key:c.key},v))});PUBC=a;PUBT=Date.now();return a})}
+function pubItems(idx){var loc=localItems(),by={},out=[],seen={};loc.forEach(function(it){by[it.slug]=it});
+  idx.forEach(function(c){seen[c.key]=1;out.push(by[c.key]||{key:c.key,cloud:true,slug:c.key,name:c.name,tags:Array.isArray(c.tags)?c.tags.join(", "):(c.tags||""),logo:c.logo||"",link:"aj://"+c.key,pub:"public",pw:!!c.pw,views:0,updated:c.updated||0})});
+  loc.forEach(function(it){if(!seen[it.slug])out.push(it)});return out}
+var _results=results;
+results=function(v){_results(v);pubLoad().then(function(idx){if($("rl").dataset.q!==v)return;var sec=$("rl").querySelector('[data-sec="apps"]');if(sec){sec.innerHTML=appsSection(pubItems(idx),v);tabApply()}}).catch(function(){})};
+function openCloudApp(k){pubLoad().then(function(idx){var m=idx.filter(function(x){return x.key===k})[0];if(!m){toast("App not found");return}
+  var viewer=(S.name||(S.user&&(S.user.name||S.user.email))||"guest").toLowerCase();
+  if((m.blocked||[]).map(function(x){return String(x).toLowerCase()}).indexOf(viewer)>-1){toast("You are blocked from this app");return}
+  var go=function(){cdb().ref("ajpub/files/"+k).once("value").then(function(s){var d=s.val();if(!d){toast("App file not found");return}
+    var f={name:m.fname||"index.html",type:m.type||"text/html",blob:unb64(d,m.type||"text/html")};
+    var l="aj://"+k;$("rt").textContent=m.name;$("rlink").value=l;$("url").value=l;$("runv").hidden=false;
+    mount($("rp"),f,{fb:!!m.fb,ads:!!m.ads,owner:"f_"+m.owner,fbc:""})}).catch(cloudErr)};
+  if(m.pw){ask("Enter app password","password").then(function(p){if(p===null)return;pwh(p).then(function(h){h===m.pw?go():toast("Wrong password")})})}else go()}).catch(cloudErr)}
+
+/* Gitbae bridge: apps opened in Aj use the real Gitbae (Firebase), shared with everyone */
+var gbInst = {}, gbSubs = [], gbLeave = {};
+GBSDK = '<script>' + "(function () {\n  var id = 0, cb = {}, ls = {};\n  function post(m) { parent.postMessage(Object.assign({ gitbae: 2 }, m), \"*\"); }\n  function call(op, a) { return new Promise(function (res, rej) { var i = ++id; cb[i] = { res: res, rej: rej }; post({ i: i, op: op, a: a || {} }); }); }\n  function stream(op, a, f) { var i = ++id; ls[i] = f; post({ i: i, op: op, a: a || {}, stream: 1 }); return function () { delete ls[i]; post({ op: \"off\", a: { i: i } }); }; }\n  window.addEventListener(\"message\", function (e) {\n    var d = e.data; if (!d || d.gitbae !== 2) return;\n    if (d.ev) { if (ls[d.i]) ls[d.i](d.val); return; }\n    var c = cb[d.i]; if (!c) { if (d.err) console.error(\"Gitbae: \" + d.err); return; }\n    delete cb[d.i]; if (d.err) c.rej(new Error(d.err)); else c.res(d.val);\n  });\n  function tree(p) {\n    return {\n      get: function (x) { return call(p + \".get\", { p: x }); },\n      set: function (x, v) { return call(p + \".set\", { p: x, v: v }); },\n      update: function (x, v) { return call(p + \".update\", { p: x, v: v }); },\n      remove: function (x) { return call(p + \".remove\", { p: x }); },\n      push: function (x, v) { return call(p + \".push\", { p: x, v: v }); },\n      increment: function (x, n) { return call(p + \".increment\", { p: x, n: n }); },\n      on: function (x, f) { return stream(p + \".on\", { p: x }, f); }\n    };\n  }\n  function qobj(c, o, q) {\n    return {\n      where: function (f, op, v) { return qobj(c, o, { w: q.w.concat([[f, op, v]]), o: q.o, l: q.l }); },\n      orderBy: function (f, d) { return qobj(c, o, { w: q.w, o: [f, d || \"asc\"], l: q.l }); },\n      limit: function (n) { return qobj(c, o, { w: q.w, o: q.o, l: n }); },\n      list: function () { return call(\"store.list\", { c: c, o: o, q: q }); },\n      on: function (f) { return stream(\"store.on\", { c: c, o: o, q: q }, f); }\n    };\n  }\n  var dbApi = tree(\"db\"); dbApi.user = tree(\"db.user\");\n  window.gitbae = {\n    db: dbApi,\n    store: {\n      collection: function (c, o) {\n        o = o || {};\n        return Object.assign(qobj(c, o, { w: [], o: null, l: null }), {\n          add: function (d) { return call(\"store.add\", { c: c, o: o, d: d }); },\n          get: function (i) { return call(\"store.get\", { c: c, o: o, i: i }); },\n          set: function (i, d) { return call(\"store.set\", { c: c, o: o, i: i, d: d }); },\n          update: function (i, d) { return call(\"store.update\", { c: c, o: o, i: i, d: d }); },\n          \"delete\": function (i) { return call(\"store.delete\", { c: c, o: o, i: i }); }\n        });\n      }\n    },\n    presence: {\n      join: function (r, info) { return call(\"presence.join\", { r: r, info: info }); },\n      leave: function (r) { return call(\"presence.leave\", { r: r }); },\n      on: function (r, f) { return stream(\"presence.on\", { r: r }, f); }\n    },\n    auth: {\n      user: function () { return call(\"auth.user\"); },\n      onChange: function (f) { return stream(\"auth.onChange\", {}, f); },\n      signInWithUI: function () { return call(\"auth.signInWithUI\"); },\n      signInWithAj: function () { return call(\"auth.signInWithAj\"); },\n      signInWithEP: function () { return call(\"auth.signInWithEP\"); },\n      signUp: function (e, p, n, d) { return call(\"auth.signUp\", { email: e, password: p, name: n, dob: d }); },\n      signIn: function (e, p) { return call(\"auth.signIn\", { email: e, password: p }); },\n      signOut: function () { return call(\"auth.signOut\"); }\n    }\n  };\n})();\n" + '<\/script>';
+function gbInstFor() {
+  var oid = String(gbOwner || "").replace(/^f_/, "");
+  if (!oid || /^u_/.test(String(gbOwner))) throw new Error("This app's owner has no cloud account yet");
+  if (typeof Gitbae === "undefined") throw new Error("gitbae.js is missing next to this page");
+  return gbInst[oid] || (gbInst[oid] = Gitbae.init({ appId: oid }));
+}
+function gbQ(c, a) {
+  var r = c.store.collection(a.c, a.o || {}), q = a.q || { w: [], o: null, l: null };
+  (q.w || []).forEach(function (w) { r = r.where(w[0], w[1], w[2]); });
+  if (q.o) r = r.orderBy(q.o[0], q.o[1]);
+  if (q.l) r = r.limit(q.l);
+  return r;
+}
+function gbRun(op, a, send) {
+  var c = gbInstFor(), p = op.split("."), m = p[p.length - 1];
+  if (p[0] === "db") {
+    var T = p[1] === "user" ? c.db.user : c.db;
+    switch (m) {
+      case "get": return T.get(a.p); case "set": return T.set(a.p, a.v); case "update": return T.update(a.p, a.v);
+      case "remove": return T.remove(a.p); case "push": return T.push(a.p, a.v); case "increment": return T.increment(a.p, a.n);
+      case "on": return T.on(a.p, send);
+    }
+  } else if (p[0] === "store") {
+    var col = function () { return c.store.collection(a.c, a.o || {}); };
+    switch (m) {
+      case "list": return gbQ(c, a).list(); case "on": return gbQ(c, a).on(send);
+      case "add": return col().add(a.d); case "get": return col().get(a.i); case "set": return col().set(a.i, a.d);
+      case "update": return col().update(a.i, a.d); case "delete": return col()["delete"](a.i);
+    }
+  } else if (p[0] === "presence") {
+    if (m === "join") return c.presence.join(a.r, a.info).then(function (leave) { gbLeave[a.r] = leave; return true; });
+    if (m === "leave") return gbLeave[a.r] ? gbLeave[a.r]() : null;
+    if (m === "on") return c.presence.on(a.r, send);
+  } else if (p[0] === "auth") {
+    switch (m) {
+      case "user": return c.auth.user; case "onChange": return c.auth.onChange(send);
+      case "signInWithUI": return c.auth.signInWithUI(); case "signInWithAj": return c.auth.signInWithAj(); case "signInWithEP": return c.auth.signInWithEP();
+      case "signUp": return c.auth.signUp(a.email, a.password, a.name, a.dob); case "signIn": return c.auth.signIn(a.email, a.password);
+      case "signOut": return c.auth.signOut();
+    }
+  }
+  throw new Error("Unknown Gitbae call: " + op);
+}
+window.addEventListener("message", function (e) {
+  var d = e.data; if (!d || d.gitbae !== 2 || !e.source) return;
+  if (d.op === "off") { gbSubs = gbSubs.filter(function (s) { if (s.src === e.source && s.i === d.a.i) { try { s.un(); } catch (x) {} return false; } return true; }); return; }
+  var rep = function (o) { try { e.source.postMessage(Object.assign({ gitbae: 2, i: d.i }, o), "*"); } catch (x) {} };
+  try {
+    if (d.stream) { var un = gbRun(d.op, d.a || {}, function (v) { rep({ ev: 1, val: v }); }); gbSubs.push({ src: e.source, i: d.i, un: un }); return; }
+    Promise.resolve(gbRun(d.op, d.a || {})).then(function (v) { rep({ val: v === undefined ? null : v }); }, function (er) { rep({ err: er && er.message || String(er) }); });
+  } catch (er) { rep({ err: er && er.message || String(er) }); }
+});
+function gbSubsClear() { gbSubs.forEach(function (s) { try { s.un(); } catch (e) {} }); gbSubs = []; }
+var _mount2 = mount; mount = function () { gbSubsClear(); return _mount2.apply(this, arguments); };
+
+/* Gitbae live sync with Firebase Realtime Database (hosted version) */
+var gbRefs=[],gbLU=null;
+function gbUid(){return S.user&&/^f_/.test(S.user.uid)?S.user.uid.slice(2):null}
+function gbPE(er){toast(er&&/permission/i.test((er.code||"")+(er.message||""))?"Database: permission denied. Add the Gitbae rules in Firebase console.":"Database sync failed")}
+function gsave(){try{localStorage.setItem(GK,JSON.stringify(GD))}catch(e){toast("Storage is full")}gbPush()}
+function gbPush(){var u=gbUid();if(!u||!window.firebase||!firebase.apps.length||!firebase.database)return;var d=gdb(S.user.uid),db=firebase.database();
+  db.ref("gitbae/"+u+"/config").set({aj:!!d.aj,ep:!!d.ep}).catch(gbPE);
+  db.ref("gitbae/"+u+"/public").set(d.rt).catch(gbPE);
+  db.ref("gitbae/"+u+"/store").set(d.gs).catch(gbPE)}
+function gbUnlisten(){gbRefs.forEach(function(r){r[0].off("value",r[1])});gbRefs=[];gbLU=null}
+function gbLive(){var a=document.activeElement;if($("gbc")&&!$("gbc").hidden&&!(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)))gbRender()}
+function gbListen(){var u=gbUid();if(!u||gbLU===u||!window.firebase||!firebase.apps.length||!firebase.database)return;gbUnlisten();gbLU=u;var d=gdb(S.user.uid),db=firebase.database();
+  [["public",function(v){d.rt=v||{}}],["store",function(v){d.gs=v||{}}],["config",function(v){v=v||{};d.aj=!!v.aj;d.ep=!!v.ep}],["profiles",function(v){d.eps=v||{}}]].forEach(function(x){
+    var r=db.ref("gitbae/"+u+"/"+x[0]),f=function(sn){x[1](sn.val());try{localStorage.setItem(GK,JSON.stringify(GD))}catch(e){}if(x[0]==="public")gbNotify();gbLive()};
+    r.on("value",f,gbPE);gbRefs.push([r,f])})}
+/* Firebase Auth (hosted version) */
+function fbErr(er){var c=er&&er.code||"";var m={"auth/email-already-in-use":"This email already has an account. Log in instead.","auth/invalid-credential":"Wrong email or password.","auth/wrong-password":"Wrong password.","auth/user-not-found":"No account with this email. Create a new account.","auth/weak-password":"Password must be at least 6 characters.","auth/invalid-email":"Enter a valid email.","auth/too-many-requests":"Too many attempts. Try again later.","auth/network-request-failed":"No internet connection.","auth/operation-not-allowed":"Enable this sign-in method in Firebase console > Authentication > Sign-in method.","auth/unauthorized-domain":"Add this domain in Firebase console > Authentication > Settings > Authorized domains.","auth/popup-closed-by-user":"Google sign-in was closed.","auth/cancelled-popup-request":"Google sign-in was closed.","auth/requires-recent-login":"Sign out, sign in again, then retry."};return m[c]||("Sign-in failed"+(c?" ("+c+")":""))}
+function acctName(){ask("Your name","text",S.user.name||"").then(function(n){if(!n||!n.trim())return;n=n.trim();var u=firebase.auth().currentUser;(u?u.updateProfile({displayName:n}):Promise.resolve()).then(function(){S.user.name=n;save();greet();hubUI();if(cur)render()}).catch(function(er){toast(fbErr(er))})})}
+function acctPw(){firebase.auth().sendPasswordResetEmail(S.user.email).then(function(){toast("Password reset email sent to "+S.user.email)}).catch(function(er){toast(fbErr(er))})}
+function acctDel(){var u0=S.user;ask("Delete your account and all your projects? This cannot be undone.").then(function(ok){if(!ok)return;var u=firebase.auth().currentUser;if(!u){wipe(u0);return}u.delete().then(function(){wipe(u0)}).catch(function(er){toast(fbErr(er))})})}
+$("fpx").hidden=true;$("fpb").textContent="Send reset email";
+$("fpb").onclick=function(){var e=$("fe").value.trim();if(!e){authErr("Enter your email");return}authErr("Sending...");firebase.auth().sendPasswordResetEmail(e).then(function(){authErr("Reset email sent. Check your inbox.")}).catch(function(er){authErr(fbErr(er))})};
+if(window.firebase){
+  try{if(!firebase.apps.length)firebase.initializeApp(FBC);
+  firebase.auth().onAuthStateChanged(function(u){if(u){var nu={email:u.email,name:u.displayName||"",uid:"f_"+u.uid};if(!S.user||S.user.uid!==nu.uid){setUser(nu)}else{gbListen();cloudStart()}}else if(S.user&&/^f_/.test(S.user.uid)){gbUnlisten();cloudU=null;cloudReady=false;S.user=null;save();greet();hubUI();gbRefresh()}});
+  $("scb").onclick=function(){var c=creds("se","sp");if(!c)return;authErr("Creating account...");
+    firebase.auth().createUserWithEmailAndPassword(c.e,c.p).then(function(r){S.dobs=S.dobs||{};S.dobs["f_"+r.user.uid]=sdata.dob;save();return r.user.updateProfile({displayName:sdata.name})}).then(function(){var u=firebase.auth().currentUser;authErr("");$("sp").value="";setUser({email:u.email,name:sdata.name,uid:"f_"+u.uid})}).catch(function(er){authErr(fbErr(er))})};
+  $("ali").onclick=function(){var c=creds();if(!c)return;authErr("Signing in...");firebase.auth().signInWithEmailAndPassword(c.e,c.p).then(function(){authErr("");$("ap").value=""}).catch(function(er){authErr(fbErr(er))})};
+  $("agg").onclick=function(){authErr("Opening Google...");firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).then(function(){authErr("")}).catch(function(er){if(er&&er.code==="auth/popup-blocked")firebase.auth().signInWithRedirect(new firebase.auth.GoogleAuthProvider());else authErr(fbErr(er))})};
+  }catch(e){}
+}
 openDB();
 theme();apps();greet();
 })();
